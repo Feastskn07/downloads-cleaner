@@ -36,9 +36,36 @@ func main() {
 	fmt.Println("Düzenlenecek klasör yolu:", *dirFlag)
 	fmt.Println("Dry Run Modu:", *dryRunFlag)
 
+	// List files in the directory
+	entries, err := listFiles(*dirFlag)
+	if err != nil {
+		fmt.Println("Hata: Klasördeki dosyalar listelenemedi: ", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Bulunan ögeler: ")
+	for _, e := range entries {
+		// Is it a file or directory?
+		if e.IsDir() {
+			fmt.Println("  [Klasör] ", e.Name())
+		} else {
+			fmt.Println("  [Dosya ] ", e.Name())
+		}
+	}
+
 	// TODO: Next steps:
 	// 1. Scan the directory for files
 	// 2. Categorize files based on their extensions
 	// 3. If dry run is true, print the planned moves
 	// 4. If dry run is false, move the files to their respective folders
+}
+
+// listFiles: Scans the given directory and returns a list of files.
+// For now, just scan the main directory and not subdirectories.
+func listFiles(dir string) ([]os.DirEntry, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	return entries, nil
 }
