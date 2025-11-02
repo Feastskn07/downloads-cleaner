@@ -4,7 +4,37 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 )
+
+var categories = map[string]string{
+	".jpg":   "images",
+	".jpeg":  "images",
+	".png":   "images",
+	".gif":   "images",
+
+	".mp4":  "videos",
+	".mkv":  "videos",
+	".avi":  "videos",
+	".mov":  "videos",
+
+	".mp3":  "audio",
+	".wav":  "audio",
+
+	".pdf":  "documents",
+	".txt":  "documents",
+	".doc":  "documents",
+	".docx": "documents",
+	".xlsx": "documents",
+
+	".zip":  "archives",
+	".rar":  "archives",
+	".7z":   "archives",
+
+	".exe":  "applications",
+	".msi":  "applications",
+}
 
 func main() {
 	// Define command-line flags
@@ -43,21 +73,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Bulunan ögeler: ")
+	fmt.Println("Planlama: ")
 	for _, e := range entries {
-		// Is it a file or directory?
 		if e.IsDir() {
 			fmt.Println("  [Klasör] ", e.Name())
+			continue
+		}
+
+		fileName := e.Name()
+		category := getTargetFolder(fileName)
+
+		destDir := filepath.Join(*dirFlag, category)
+		destPath := filepath.Join(destDir, fileName)
+
+		if *dryRunFlag {
+			fmt.Printf("  [Dry Run] Taşınacak: %s -> %s\n", fileName, destPath)
 		} else {
-			fmt.Println("  [Dosya ] ", e.Name())
+			// Here we would move the file (not implemented yet)
+			fmt.Printf("  Taşınıyor: %s -> %s\n", fileName, destPath)
 		}
 	}
-
-	// TODO: Next steps:
-	// 1. Scan the directory for files
-	// 2. Categorize files based on their extensions
-	// 3. If dry run is true, print the planned moves
-	// 4. If dry run is false, move the files to their respective folders
 }
 
 // listFiles: Scans the given directory and returns a list of files.
@@ -68,4 +103,13 @@ func listFiles(dir string) ([]os.DirEntry, error) {
 		return nil, err
 	}
 	return entries, nil
+}
+
+// getTargetFolder: Returns the target folder name based on file extension.
+func getTargetFolder(fileName string) string {
+	ext := strings.ToLower(filepath.Ext(fileName)) // ".PNG" -> ".png"
+	if folder, ok := categories[ext]; ok {
+		return folder
+	}
+	return "others"
 }
