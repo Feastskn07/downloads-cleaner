@@ -113,3 +113,27 @@ func getTargetFolder(fileName string) string {
 	}
 	return "others"
 }
+
+// uniquePath:
+// dir -> target directory path (exm: "C:\Users\User\Downloads\images")
+// baseName -> desired file name (exm: "photo.png")
+func uniquePath(dir, baseName string) (string, error) {
+	ext := filepath.Ext(baseName)  	              // ".png"
+	nameOnly := strings.TrimSuffix(baseName, ext) // "photo"
+
+	candidate := filepath.Join(dir, baseName)
+	counter := 2
+
+	for {
+		// os.Stat returns error if the file does not exist
+		_, err := os.Stat(candidate)
+		if os.IsNotExist(err) {
+			return candidate, nil // File does not exist, return this path
+		}
+
+		// File exists, generate a new candidate
+		newName := fmt.Sprintf("%s(%d)%s", nameOnly, counter, ext)
+		candidate = filepath.Join(dir, newName)
+		counter++
+	}
+}
