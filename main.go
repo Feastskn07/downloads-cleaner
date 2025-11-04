@@ -119,7 +119,7 @@ func main() {
 		}
 
 		// Move the file
-		finalPath, err := moveFileToCategory(*dirFlag, fileName)
+		finalPath, err := moveFileToCategory(*dirFlag, fileName, cats)
 		if err != nil {
 			fmt.Printf("  [Hata] %s taşınamadı: %v\n", fileName, err)
 			continue
@@ -193,11 +193,11 @@ func uniquePath(dir, baseName string) (string, error) {
 	}
 }
 
-func moveFileToCategory(downloadsDir, fileName string) (string, error) {
+func moveFileToCategory(downloadsDir, fileName string, cats Categories) (string, error) {
 	srcPath := filepath.Join(downloadsDir, fileName)
 
 	// Determine target folder
-	categoryFolder := getTargetFolder(fileName, defaultCategories)
+	categoryFolder := getTargetFolder(fileName, cats)
 
 	// Target directory path
 	destDir := filepath.Join(downloadsDir, categoryFolder)
