@@ -3,24 +3,26 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
 var categories = map[string]string{
-	".jpg":   "images",
-	".jpeg":  "images",
-	".png":   "images",
-	".gif":   "images",
+	".jpg":  "images",
+	".jpeg": "images",
+	".png":  "images",
+	".gif":  "images",
 
-	".mp4":  "videos",
-	".mkv":  "videos",
-	".avi":  "videos",
-	".mov":  "videos",
+	".mp4": "videos",
+	".mkv": "videos",
+	".avi": "videos",
+	".mov": "videos",
 
-	".mp3":  "audio",
-	".wav":  "audio",
+	".mp3": "audio",
+	".wav": "audio",
 
 	".pdf":  "documents",
 	".txt":  "documents",
@@ -28,18 +30,24 @@ var categories = map[string]string{
 	".docx": "documents",
 	".xlsx": "documents",
 
-	".zip":  "archives",
-	".rar":  "archives",
-	".7z":   "archives",
+	".zip": "archives",
+	".rar": "archives",
+	".7z":  "archives",
 
-	".exe":  "applications",
-	".msi":  "applications",
+	".exe": "applications",
+	".msi": "applications",
 }
 
 func main() {
+	// How to use
+	// go run main.go -dir "C:\Users\Feas\Downloads" -dryrun -include-dirs -config ".\categories.json" -log ".\organizer.log"
+
 	// Define command-line flags
 	dirFlag := flag.String("dir", "", "Düzenlenecek klasör yolu (Zorunlu!)")
 	dryRunFlag := flag.Bool("dryrun", false, "True ise dosyalar taşınmaz, sadece ne yapılacağını gösterir.")
+	configPath := flag.String("config", "", "Opsiyonel. Özelleştirilmiş kategori yapılandırma dosyasının yolu.")
+	includeSubdirs := flag.Bool("subdirs", false, "True ise alt klasörler de taranır.")
+	logPath := flag.String("log", "organizer.log", "Log dosyası yolu (stdout ile beraber yazılır.).")
 
 	flag.Parse()
 
@@ -49,6 +57,16 @@ func main() {
 		fmt.Println("  go run main.go -dir \"C:\\Users\\User\\Downloads\" -dryrun")
 		os.Exit(1)
 	}
+
+	logger, closer, err := openLogger(*logPath)
+	if err != nil {
+		fmt.Println("Hata: Log dosyası açılamadı: ", err)
+		os.Exit(1)
+	}
+	defer closer.Close()
+
+	logger.Println("[INFO] Başladı")
+	logger.Printf("[INFO] Klasör: %s, Dry Run: %v, Alt Klasörler: %v, Konfigürasyon: %s\n", *dirFlag, *dryRunFlag, *includeSubdirs, *configPath)
 
 	// Check if the provided directory exists
 	info, err := os.Stat(*dirFlag)
@@ -103,6 +121,16 @@ func main() {
 	}
 }
 
+func openLogger(logFilePath string) (*log.Logger, io.Closer, error) {
+	f, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, nil, err
+	}
+	mw := io.MultiWriter(os.Stdout, f)
+	logger := log.New(mw, "", log.LstdFlags)
+	return logger, f, nil
+}
+
 // listFiles: Scans the given directory and returns a list of files.
 // For now, just scan the main directory and not subdirectories.
 func listFiles(dir string) ([]os.DirEntry, error) {
@@ -126,7 +154,7 @@ func getTargetFolder(fileName string) string {
 // dir -> target directory path (exm: "C:\Users\User\Downloads\images")
 // baseName -> desired file name (exm: "photo.png")
 func uniquePath(dir, baseName string) (string, error) {
-	ext := filepath.Ext(baseName)  	              // ".png"
+	ext := filepath.Ext(baseName)                 // ".png"
 	nameOnly := strings.TrimSuffix(baseName, ext) // "photo"
 
 	candidate := filepath.Join(dir, baseName)
