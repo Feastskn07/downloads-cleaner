@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -10,7 +11,9 @@ import (
 	"strings"
 )
 
-var categories = map[string]string{
+type Categories map[string]string
+
+var defaultCategories = Categories{
 	".jpg":  "images",
 	".jpeg": "images",
 	".png":  "images",
@@ -68,6 +71,11 @@ func main() {
 	logger.Println("[INFO] Başladı")
 	logger.Printf("[INFO] Klasör: %s, Dry Run: %v, Alt Klasörler: %v, Konfigürasyon: %s\n", *dirFlag, *dryRunFlag, *includeSubdirs, *configPath)
 
+	cats, catErr := readCategories(*configPath)
+	if catErr != nil {
+		logger.Printf("[WARN] Kategori dosyası okunamadı, varsayılan kategoriler kullanılacak: %v\n", catErr)
+	}
+
 	// Check if the provided directory exists
 	info, err := os.Stat(*dirFlag)
 	if err != nil {
@@ -99,7 +107,7 @@ func main() {
 		}
 
 		fileName := e.Name()
-		category := getTargetFolder(fileName)
+		category := getTargetFolder(fileName, cats)
 
 		destDir := filepath.Join(*dirFlag, category)
 		previewPath := filepath.Join(destDir, fileName)
@@ -131,8 +139,23 @@ func openLogger(logFilePath string) (*log.Logger, io.Closer, error) {
 	return logger, f, nil
 }
 
-// listFiles: Scans the given directory and returns a list of files.
-// For now, just scan the main directory and not subdirectories.
+func readCategories(path string) (Categories, error) {
+	if path == "" {
+		return defaultCategories, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		// If error reading file, return default categories
+		return defaultCategories, err
+	}
+	var c Categories
+	if err := json.Unmarshal(b, &c); err != nil {
+		// If error parsing JSON, return default categories
+		return defaultCategories, err
+	}
+	return c, nil
+}
+
 func listFiles(dir string) ([]os.DirEntry, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -141,18 +164,14 @@ func listFiles(dir string) ([]os.DirEntry, error) {
 	return entries, nil
 }
 
-// getTargetFolder: Returns the target folder name based on file extension.
-func getTargetFolder(fileName string) string {
+func getTargetFolder(fileName string, cats Categories) string {
 	ext := strings.ToLower(filepath.Ext(fileName)) // ".PNG" -> ".png"
-	if folder, ok := categories[ext]; ok {
+	if folder, ok := cats[ext]; ok {
 		return folder
 	}
 	return "others"
 }
 
-// uniquePath:
-// dir -> target directory path (exm: "C:\Users\User\Downloads\images")
-// baseName -> desired file name (exm: "photo.png")
 func uniquePath(dir, baseName string) (string, error) {
 	ext := filepath.Ext(baseName)                 // ".png"
 	nameOnly := strings.TrimSuffix(baseName, ext) // "photo"
@@ -174,14 +193,11 @@ func uniquePath(dir, baseName string) (string, error) {
 	}
 }
 
-// moveFileToCategory:
-// downloadsDir -> "C:\Users\User\Downloads"
-// fileName -> "photo.png"
 func moveFileToCategory(downloadsDir, fileName string) (string, error) {
 	srcPath := filepath.Join(downloadsDir, fileName)
 
 	// Determine target folder
-	categoryFolder := getTargetFolder(fileName)
+	categoryFolder := getTargetFolder(fileName, defaultCategories)
 
 	// Target directory path
 	destDir := filepath.Join(downloadsDir, categoryFolder)

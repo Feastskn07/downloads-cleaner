@@ -1,0 +1,20 @@
+{
+  ".jpg": "Images",
+  ".jpeg": "Images",
+  ".png": "Images",
+  ".gif": "Images",
+
+  ".mp4": "Videos",
+  ".mkv": "Videos",
+
+  ".pdf": "Documents",
+  ".docx": "Documents",
+  ".xlsx": "Documents",
+  ".txt": "Documents",
+
+  ".zip": "Archives",
+  ".rar": "Archives",
+
+  ".exe": "Installers",
+  ".msi": "Installers"
+}
