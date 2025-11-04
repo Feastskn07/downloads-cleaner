@@ -84,14 +84,22 @@ func main() {
 		category := getTargetFolder(fileName)
 
 		destDir := filepath.Join(*dirFlag, category)
-		destPath := filepath.Join(destDir, fileName)
+		previewPath := filepath.Join(destDir, fileName)
 
 		if *dryRunFlag {
-			fmt.Printf("  [Dry Run] Taşınacak: %s -> %s\n", fileName, destPath)
-		} else {
-			// Here we would move the file (not implemented yet)
-			fmt.Printf("  Taşınıyor: %s -> %s\n", fileName, destPath)
+			// Just preview
+			fmt.Printf("  [Dry Run] %s -> %s\n", fileName, previewPath)
+			continue
 		}
+
+		// Move the file
+		finalPath, err := moveFileToCategory(*dirFlag, fileName)
+		if err != nil {
+			fmt.Printf("  [Hata] %s taşınamadı: %v\n", fileName, err)
+			continue
+		}
+
+		fmt.Printf("  [Taşındı] %s -> %s\n", fileName, finalPath)
 	}
 }
 
