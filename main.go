@@ -137,3 +137,34 @@ func uniquePath(dir, baseName string) (string, error) {
 		counter++
 	}
 }
+
+// moveFileToCategory:
+// downloadsDir -> "C:\Users\User\Downloads"
+// fileName -> "photo.png"
+func moveFileToCategory(downloadsDir, fileName string) (string, error) {
+	srcPath := filepath.Join(downloadsDir, fileName)
+
+	// Determine target folder
+	categoryFolder := getTargetFolder(fileName)
+
+	// Target directory path
+	destDir := filepath.Join(downloadsDir, categoryFolder)
+
+	// If the target directory does not exist, create it
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return "", err
+	}
+
+	// Determine unique destination path
+	finalDestPath, err := uniquePath(destDir, fileName)
+	if err != nil {
+		return "", err
+	}
+
+	// Move the file
+	if err := os.Rename(srcPath, finalDestPath); err != nil {
+		return "", err
+	}
+
+	return finalDestPath, nil
+}
