@@ -63,16 +63,16 @@ func main() {
 
 	flag.Parse()
 
+	if *gui {
+		startGUI()
+		return
+	}
+
 	// Check if the required 'dir' flag is provided
 	if *dirFlag == "" {
 		fmt.Println("Hata: -dir parametresi zorunludur. Örnek kullanım:")
 		fmt.Println("  go run main.go -dir \"C:\\Users\\User\\Downloads\" -dryrun")
 		os.Exit(1)
-	}
-
-	if *gui {
-		startGUI()
-		return
 	}
 
 	logger, closer, err := openLogger(*logPath)
@@ -124,58 +124,6 @@ func main() {
 	}
 
 	logger.Println("[INFO] İşlem tamamlandı.")
-
-	// Check if the provided directory exists
-	info, err := os.Stat(*dirFlag)
-	if err != nil {
-		fmt.Println("Hata: Verilen klasöre erişilemiyor: ", err)
-		os.Exit(1)
-	}
-
-	if !info.IsDir() {
-		fmt.Println("Hata: Verilen yol bir klasör değil.")
-		os.Exit(1)
-	}
-
-	// Rightnow we just report the received parameters
-	fmt.Println("Düzenlenecek klasör yolu:", *dirFlag)
-	fmt.Println("Dry Run Modu:", *dryRunFlag)
-
-	// List files in the directory
-	entries, err := listFiles(*dirFlag)
-	if err != nil {
-		fmt.Println("Hata: Klasördeki dosyalar listelenemedi: ", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("Planlama: ")
-	for _, e := range entries {
-		if e.IsDir() {
-			fmt.Println("  [Klasör] ", e.Name())
-			continue
-		}
-
-		fileName := e.Name()
-		category := getTargetFolder(fileName, cats)
-
-		destDir := filepath.Join(*dirFlag, category)
-		previewPath := filepath.Join(destDir, fileName)
-
-		if *dryRunFlag {
-			// Just preview
-			fmt.Printf("  [Dry Run] %s -> %s\n", fileName, previewPath)
-			continue
-		}
-
-		// Move the file
-		finalPath, err := moveFileToCategory(*dirFlag, fileName, cats)
-		if err != nil {
-			fmt.Printf("  [Hata] %s taşınamadı: %v\n", fileName, err)
-			continue
-		}
-
-		fmt.Printf("  [Taşındı] %s -> %s\n", fileName, finalPath)
-	}
 }
 
 func startGUI() {
@@ -190,10 +138,15 @@ func startGUI() {
 			if err != nil || uri == nil {
 				return
 			}
-			p := uri.Path()
-			dirEntry.SetText(p)
+			dirEntry.SetText(uri.Path())
 		}, w)
-		d.SetLocation(storage.NewFileURI("file:///"))
+
+		if home, err := os.UserHomeDir(); err == nil {
+			u := storage.NewFileURI(home)
+			if l, err := storage.ListerForURI(u); err == nil {
+				d.SetLocation(l)
+			}
+		}
 		d.Show()
 	})
 
@@ -272,7 +225,7 @@ func startGUI() {
 			files, ferr := collectFiles(resolved, chkSub.Checked, managed)
 			if ferr != nil {
 				fyne.CurrentApp().SendNotification(&fyne.Notification{Title: "Hata", Content: ferr.Error()})
-				fyne.CurrentApp().Driver().CallOnMain(func() {
+				onUI(func() {
 					status.SetText("Hata: " + ferr.Error())
 				})
 				return
@@ -283,7 +236,7 @@ func startGUI() {
 				cat := getTargetFolder(base, cats)
 				out = append(out, rel+" -> "+filepath.Join(resolved, cat, base))
 			}
-			fyne.CurrentApp().Driver().CallOnMain(func() {
+			onUI(func() {
 				previewRows = out
 				list.Refresh()
 				status.SetText(fmt.Sprintf("Toplam %d dosya bulunuyor.", len(out)))
@@ -312,7 +265,7 @@ func startGUI() {
 		go func() {
 			files, ferr := collectFiles(resolved, chkSub.Checked, managed)
 			if ferr != nil {
-				fyne.CurrentApp().Driver().CallOnMain(func() {
+				onUI(func() {
 					dialog.ShowError(ferr, w)
 					status.SetText("Hata: " + ferr.Error())
 					btnRun.Enable()
@@ -330,7 +283,7 @@ func startGUI() {
 				dest := filepath.Join(resolved, cat, base)
 
 				if dry {
-					fyne.CurrentApp().Driver().CallOnMain(func() {
+					onUI(func() {
 						appendLog("[DRY RUN] " + rel + " -> " + dest)
 					})
 					continue
@@ -339,18 +292,18 @@ func startGUI() {
 				finalPath, merr := moveFileToCategoryFromPath(resolved, rel, cats)
 				if merr != nil {
 					errs++
-					fyne.CurrentApp().Driver().CallOnMain(func() {
+					onUI(func() {
 						appendLog("[ERROR] " + rel + " taşınamadı: " + merr.Error())
 					})
 					continue
 				}
 				moved++
-				fyne.CurrentApp().Driver().CallOnMain(func() {
+				onUI(func() {
 					appendLog("[MOVED] " + rel + " -> " + finalPath)
 				})
 			}
 
-			fyne.CurrentApp().Driver().CallOnMain(func() {
+			onUI(func() {
 				status.SetText(fmt.Sprintf("İşlem tamamlandı. %d taşındı, %d hata.", moved, errs))
 				btnRun.Enable()
 				btnPreview.Enable()
@@ -360,6 +313,43 @@ func startGUI() {
 		}()
 	}
 	w.ShowAndRun()
+}
+
+func resolveDownloadsDir(input string) (string, error) {
+	trimmed := strings.TrimSpace(input)
+	trimmed = strings.Trim(trimmed, "\"'")
+
+	if trimmed == "" {
+		return "", fmt.Errorf("Klasör yolu boş olamaz.")
+	}
+	expanded := os.ExpandEnv(trimmed)
+
+	if strings.HasPrefix(expanded, "~") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		expanded = filepath.Join(home, strings.TrimPrefix(expanded, "~\\"))
+		expanded = filepath.Join(home, strings.TrimPrefix(expanded, "~/"))
+	}
+
+	cleaned := filepath.Clean(expanded)
+	if _, err := os.Stat(cleaned); err == nil {
+		return cleaned, nil
+	}
+
+	home := os.Getenv("USERPROFILE")
+	if home != "" {
+		od := filepath.Join(home, "OneDrive", "Downloads")
+		if _, err := os.Stat(od); err == nil {
+			return od, nil
+		}
+		dl := filepath.Join(home, "Downloads")
+		if _, err := os.Stat(dl); err == nil {
+			return dl, nil
+		}
+	}
+	return "", fmt.Errorf("Klasör bulunamadı: %s", cleaned)
 }
 
 func openLogger(logFilePath string) (*log.Logger, io.Closer, error) {
@@ -441,14 +431,6 @@ func collectFiles(root string, includeSubdirs bool, manageDirs map[string]bool) 
 	return files, nil
 }
 
-func listFiles(dir string) ([]os.DirEntry, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	return entries, nil
-}
-
 func getTargetFolder(fileName string, cats Categories) string {
 	ext := strings.ToLower(filepath.Ext(fileName)) // ".PNG" -> ".png"
 	if folder, ok := cats[ext]; ok {
@@ -478,34 +460,6 @@ func uniquePath(dir, baseName string) (string, error) {
 	}
 }
 
-func moveFileToCategory(downloadsDir, fileName string, cats Categories) (string, error) {
-	srcPath := filepath.Join(downloadsDir, fileName)
-
-	// Determine target folder
-	categoryFolder := getTargetFolder(fileName, cats)
-
-	// Target directory path
-	destDir := filepath.Join(downloadsDir, categoryFolder)
-
-	// If the target directory does not exist, create it
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return "", err
-	}
-
-	// Determine unique destination path
-	finalDestPath, err := uniquePath(destDir, fileName)
-	if err != nil {
-		return "", err
-	}
-
-	// Move the file
-	if err := os.Rename(srcPath, finalDestPath); err != nil {
-		return "", err
-	}
-
-	return finalDestPath, nil
-}
-
 func moveFileToCategoryFromPath(root, rel string, cats Categories) (string, error) {
 	srcPath := filepath.Join(root, rel)
 	fileName := filepath.Base(rel)
@@ -524,4 +478,12 @@ func moveFileToCategoryFromPath(root, rel string, cats Categories) (string, erro
 		return "", err
 	}
 	return finalDestPath, nil
+}
+
+func onUI(f func()) {
+	if app := fyne.CurrentApp(); app != nil && app.Driver() != nil {
+		app.Driver().DoFromGoroutine(f, true)
+		return
+	}
+	f()
 }
