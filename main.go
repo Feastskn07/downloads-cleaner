@@ -481,9 +481,18 @@ func moveFileToCategoryFromPath(root, rel string, cats Categories) (string, erro
 }
 
 func onUI(f func()) {
-	if app := fyne.CurrentApp(); app != nil && app.Driver() != nil {
-		app.Driver().DoFromGoroutine(f, true)
-		return
+	if a := fyne.CurrentApp(); a != nil {
+		if dr := a.Driver(); dr != nil {
+			// Event thread’de miyiz? (Fyne 2.7 sürücülerinde mevcut)
+			type eventThread interface{ IsEventThread() bool }
+			if et, ok := dr.(eventThread); ok && et.IsEventThread() {
+				f() // zaten ana thread: direkt çalıştır
+				return
+			}
+			dr.DoFromGoroutine(f, true) // arka plandan: ana threade taşı (senkron)
+			return
+		}
 	}
+	// app/driver yoksa (test vb.): direkt çalıştır
 	f()
 }
