@@ -129,7 +129,7 @@ func main() {
 func startGUI() {
 	a := app.New()
 	w := a.NewWindow("Downloads Cleaner")
-	w.Resize(fyne.NewSize(400, 300))
+	w.Resize(fyne.NewSize(900, 560))
 
 	dirEntry := widget.NewEntry()
 	dirEntry.Disable()
@@ -193,7 +193,7 @@ func startGUI() {
 		btnPick,
 		dirEntry,
 	)
-	cfgRow := container.NewHBox(
+	cfgRow := container.NewBorder(
 		nil, nil,
 		widget.NewLabel("Config:"),
 		btnPickCfg,
