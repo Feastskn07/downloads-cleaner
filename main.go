@@ -132,6 +132,7 @@ func startGUI() {
 	w.Resize(fyne.NewSize(400, 300))
 
 	dirEntry := widget.NewEntry()
+	dirEntry.Disable()
 	dirEntry.SetPlaceHolder(`Örn: C:\Users\user\Downloads`)
 	btnPick := widget.NewButton("Klasör Seç", func() {
 		d := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
@@ -151,8 +152,9 @@ func startGUI() {
 	})
 
 	chkSub := widget.NewCheck("Alt klasörleri tarasın", func(bool) {})
-	chkDry := widget.NewCheck("Dry Run Modu", func(bool) {})
+
 	configEntry := widget.NewEntry()
+	configEntry.Disable()
 	configEntry.SetPlaceHolder(`Opsiyonel: C:\path\to\categories.json`)
 	btnPickCfg := widget.NewButton("Config Seç", func() {
 		d := dialog.NewFileOpen(func(rc fyne.URIReadCloser, err error) {
@@ -176,32 +178,42 @@ func startGUI() {
 		o.(*widget.Label).SetText(previewRows[i])
 	}
 
-	logArea := widget.NewMultiLineEntry()
-	logArea.SetPlaceHolder("Loglar burada görünecek...")
-	logArea.Wrapping = fyne.TextWrapWord
-	logArea.SetMinRowsVisible(8)
+	logLabel := widget.NewLabel("")
+	logLabel.Wrapping = fyne.TextWrapWord
+	logScroll := container.NewVScroll(logLabel)
+	logScroll.SetMinSize(fyne.NewSize(0, 200))
 
 	status := widget.NewLabel("")
 	btnPreview := widget.NewButton("Önizleme", nil)
 	btnRun := widget.NewButton("Taşı", nil)
 
-	topRow := container.NewBorder(nil, nil,
-		container.NewHBox(widget.NewLabel("Klasör:"), dirEntry, btnPick),
-		nil, nil)
-
-	cfgRow := container.NewHBox(widget.NewLabel("Config:"), configEntry, btnPickCfg)
-	optsRow := container.NewHBox(chkSub, chkDry)
+	topRow := container.NewBorder(
+		nil, nil,
+		widget.NewLabel("Klasör:"),
+		btnPick,
+		dirEntry,
+	)
+	cfgRow := container.NewHBox(
+		nil, nil,
+		widget.NewLabel("Config:"),
+		btnPickCfg,
+		configEntry,
+	)
+	optsRow := container.NewHBox(chkSub)
 
 	left := container.NewVBox(topRow, cfgRow, optsRow, container.NewHBox(btnPreview, btnRun), status)
-	split := container.NewHSplit(left, container.NewVSplit(list, logArea))
-	split.Offset = 0.4
+	right := container.NewVSplit(list, logScroll)
+	right.SetOffset(0.6)
+	split := container.NewHSplit(left, right)
+	split.Offset = 0.52
 
 	w.SetContent(split)
 
+	var logBuf []string
 	appendLog := func(line string) {
 		ts := time.Now().Format("15:04:05")
-		logArea.SetText(logArea.Text + "[" + ts + "]" + line + "\n")
-		logArea.CursorRow = len(logArea.Text)
+		logBuf = append(logBuf, "["+ts+"]"+line)
+		onUI(func() { logLabel.SetText(strings.Join(logBuf, "\n")) })
 	}
 
 	btnPreview.OnTapped = func() {
@@ -275,32 +287,20 @@ func startGUI() {
 			}
 
 			moved, errs := 0, 0
-			dry := chkDry.Checked
 
 			for _, rel := range files {
 				base := filepath.Base(rel)
 				cat := getTargetFolder(base, cats)
 				dest := filepath.Join(resolved, cat, base)
 
-				if dry {
-					onUI(func() {
-						appendLog("[DRY RUN] " + rel + " -> " + dest)
-					})
-					continue
-				}
-
 				finalPath, merr := moveFileToCategoryFromPath(resolved, rel, cats)
 				if merr != nil {
 					errs++
-					onUI(func() {
-						appendLog("[ERROR] " + rel + " taşınamadı: " + merr.Error())
-					})
+					onUI(func() { appendLog("[ERROR] " + rel + " taşınamadı: " + merr.Error()) })
 					continue
 				}
 				moved++
-				onUI(func() {
-					appendLog("[MOVED] " + rel + " -> " + finalPath)
-				})
+				onUI(func() { appendLog("[MOVED] " + rel + " -> " + finalPath + " (hedef: " + dest + ")") })
 			}
 
 			onUI(func() {
@@ -320,7 +320,7 @@ func resolveDownloadsDir(input string) (string, error) {
 	trimmed = strings.Trim(trimmed, "\"'")
 
 	if trimmed == "" {
-		return "", fmt.Errorf("Klasör yolu boş olamaz.")
+		return "", fmt.Errorf("klasör yolu boş olamaz")
 	}
 	expanded := os.ExpandEnv(trimmed)
 
@@ -349,7 +349,7 @@ func resolveDownloadsDir(input string) (string, error) {
 			return dl, nil
 		}
 	}
-	return "", fmt.Errorf("Klasör bulunamadı: %s", cleaned)
+	return "", fmt.Errorf("klasör bulunamadı: %s", cleaned)
 }
 
 func openLogger(logFilePath string) (*log.Logger, io.Closer, error) {
