@@ -4,12 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2/widget"
 	"io"
 	"io/fs"
 	"log"
@@ -17,6 +11,13 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/widget"
 )
 
 type Categories map[string]string
@@ -59,11 +60,11 @@ func main() {
 	configPath := flag.String("config", "", "Opsiyonel. Özelleştirilmiş kategori yapılandırma dosyasının yolu.")
 	includeSubdirs := flag.Bool("subdirs", false, "True ise alt klasörler de taranır.")
 	logPath := flag.String("log", "organizer.log", "Log dosyası yolu (stdout ile beraber yazılır.).")
-	gui := flag.Bool("gui", false, "Masaüstü arayüzünü başlatır.")
+	cli := flag.Bool("cli", false, "Komut satırı arayüzünü başlatır.")
 
 	flag.Parse()
 
-	if *gui {
+	if !*cli {
 		startGUI()
 		return
 	}
@@ -71,7 +72,7 @@ func main() {
 	// Check if the required 'dir' flag is provided
 	if *dirFlag == "" {
 		fmt.Println("Hata: -dir parametresi zorunludur. Örnek kullanım:")
-		fmt.Println("  go run main.go -dir \"C:\\Users\\User\\Downloads\" -dryrun")
+		fmt.Println(`  downloads-cleaner.exe -cli -dir \"C:\\Users\\User\\Downloads\" -dryrun`)
 		os.Exit(1)
 	}
 
@@ -127,7 +128,7 @@ func main() {
 }
 
 func startGUI() {
-	a := app.New()
+	a := app.NewWithID("com.feas.downloads-cleaner")
 	w := a.NewWindow("Downloads Cleaner")
 	w.Resize(fyne.NewSize(900, 560))
 
